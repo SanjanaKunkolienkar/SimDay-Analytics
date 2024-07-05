@@ -1,0 +1,80 @@
+Index: main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import os\r\nimport time\r\nfrom scripts import populate_na\r\nfrom scripts import filter_stations\r\nfrom scripts import gen_matrices\r\nfrom scripts import find_closest\r\n\r\ndef generate():\r\n    print('Running generate')\r\n    start_time = time.time()\r\n\r\n    file_paths_populate_na = []\r\n    file_paths_filter_stations = []\r\n    file_paths_gen_matrices = []\r\n    for dir in os.listdir('./data'):\r\n        for file in os.listdir(f'./data/{dir}'):\r\n            if file.endswith('.csv'):\r\n                # Generate path lists\r\n                path = f'./data/{dir}/{file}'\r\n                file_paths_populate_na.append(path)\r\n                file_paths_filter_stations.append(path.replace('data', 'data_populated'))\r\n                file_paths_gen_matrices.append(path.replace('data', 'data_filtered'))\r\n    \r\n    # Run using multiprocessing\r\n    populate_na.run_parallel(file_paths_populate_na)\r\n    filter_stations.run_parallel(file_paths_filter_stations)\r\n    gen_matrices.run_parallel(file_paths_gen_matrices)\r\n    \r\n    elapsed_time = time.time() - start_time\r\n    print('All data processed')\r\n    print(f\"Took {elapsed_time//86400} days, {elapsed_time//3600%24} hrs, {elapsed_time//60%60} mins, {elapsed_time%60:.2f} secs\")\r\n\r\nif __name__ == '__main__':\r\n    q = input('Do you want to generate the matrices? (y/n): ')\r\n    if q == 'y':\r\n        generate()\r\n    while True:\r\n        target = input('Enter the target day (YYYY-MM-DD) or q to quit: ')\r\n        if target == 'q':\r\n            break\r\n        which = input('Enter which set of features to compare (mat1/mat2/mat3): ')\r\n        find_closest.run(target, which)\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/main.py b/main.py
+--- a/main.py	(revision 4c845ee6988ede45e9cd8886ab992b80426b7eea)
++++ b/main.py	(date 1720119501668)
+@@ -39,4 +39,4 @@
+         if target == 'q':
+             break
+         which = input('Enter which set of features to compare (mat1/mat2/mat3): ')
+-        find_closest.run(target, which)
++        day = find_closest.run(target, which)
+Index: scripts/find_closest.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import pandas as pd\r\nimport numpy as np\r\nimport os\r\nimport time\r\nimport matplotlib.pyplot as plt\r\nfrom matplotlib.backends.backend_tkagg import FigureCanvasTkAgg\r\nimport tkinter as tk\r\nfrom sklearn.decomposition import PCA\r\nfrom scripts import gen_matrices\r\n\r\ndef load_matrix(file_path):\r\n    '''\r\n    Load a matrix from a file.\r\n\r\n    Parameters:\r\n    file_path (str): The path to the file containing the matrix.\r\n\r\n    Returns:\r\n    numpy.ndarray: The matrix.\r\n    '''\r\n    return np.load(file_path)\r\n\r\ndef reduce_dimensionality(matrix):\r\n    '''\r\n    Reduce the dimensionality of a matrix using PCA.\r\n\r\n    Parameters:\r\n    matrix (numpy.ndarray): The matrix to reduce.\r\n\r\n    Returns:\r\n    numpy.ndarray: The reduced matrix.\r\n    '''\r\n    pca = PCA(n_components=min(matrix.shape[0], matrix.shape[1]))\r\n    reduced_matrix = pca.fit_transform(matrix.T)\r\n    return reduced_matrix.T\r\n\r\ndef compare_days_frobenius_norm(matrix1, matrix2):\r\n    '''\r\n    Compare two days using the Frobenius norm.\r\n\r\n    Parameters:\r\n    matrix1 (numpy.ndarray): The matrix for the first day.\r\n    matrix2 (numpy.ndarray): The matrix for the second day.\r\n\r\n    Returns:\r\n    float: The Frobenius norm between the two matrices.\r\n    '''\r\n    return np.linalg.norm(matrix1 - matrix2, 'fro')\r\n\r\ndef plot_comparison(days, date1, date2):\r\n    '''\r\n    Plot the comparison between two days.\r\n\r\n    Parameters:\r\n    days (dict): A dictionary containing the matrices for each day.\r\n    date1 (str): The first date.\r\n    date2 (str): The second date.\r\n\r\n    Returns:\r\n    None\r\n    '''\r\n    matrix1 = days[date1].T\r\n    matrix2 = days[date2].T\r\n\r\n    features = matrix1.shape[0]\r\n    columns = matrix1.shape[1]\r\n    hours = 24\r\n    columns_per_hour = columns // hours\r\n\r\n    root = tk.Tk()\r\n    root.title(\"Scrollable Plot\")\r\n\r\n    fig, axes = plt.subplots(features, 2, figsize=(15, features * 2), sharex=True)\r\n    fig.suptitle(f'Comparison between {date1} and {date2}', fontsize=16)\r\n\r\n    canvas = FigureCanvasTkAgg(fig, master=root)\r\n    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)\r\n\r\n    def update_plot(hour):\r\n        start_col = hour * columns_per_hour\r\n        end_col = min((hour + 1) * columns_per_hour, columns)\r\n        for i in range(features):\r\n            axes[i, 0].cla()\r\n            axes[i, 1].cla()\r\n\r\n            # Bar plot for Feature i from matrix1 and matrix2 with transparency\r\n            axes[i, 0].bar(range(end_col - start_col), matrix1[i, start_col:end_col], label=f'{date1}', alpha=0.5, color='blue')\r\n            axes[i, 0].bar(range(end_col - start_col), matrix2[i, start_col:end_col], label=f'{date2}', alpha=0.5, color='orange')\r\n            axes[i, 0].set_title(f'Feature {i+1}')\r\n            axes[i, 0].set_ylabel('Value')\r\n            axes[i, 0].legend()\r\n\r\n            # Bar plot the difference with transparency\r\n            axes[i, 1].bar(range(end_col - start_col), matrix1[i, start_col:end_col] - matrix2[i, start_col:end_col], label='Difference', alpha=0.5, color='green')\r\n            axes[i, 1].set_title(f'Feature {i+1} Difference')\r\n            axes[i, 1].set_ylabel('Difference')\r\n            axes[i, 1].legend()\r\n\r\n        for ax in axes.flat:\r\n            ax.set_xlabel('Station')\r\n\r\n        canvas.draw()\r\n\r\n    slider = tk.Scale(root, from_=0, to=hours-1, orient=tk.HORIZONTAL, length=600, label=\"Hour\", command=lambda x: update_plot(int(x)))\r\n    slider.pack(side=tk.BOTTOM)\r\n\r\n    def on_closing():\r\n        plt.close('all')\r\n        root.destroy()\r\n        root.quit()\r\n        \r\n    root.protocol(\"WM_DELETE_WINDOW\", on_closing)\r\n\r\n    update_plot(0)\r\n    root.mainloop()\r\n\r\ndef load_days(year, month, which):\r\n    '''\r\n    Load the days from the output path.\r\n\r\n    Parameters:\r\n    year_month (str): The year and month to load the days for.\r\n\r\n    Returns:\r\n    dict: A dictionary containing the days.\r\n    '''\r\n    days = {}\r\n    for file in os.listdir(f'./output/{year}/{month}/'):\r\n        if file.endswith('.npy') and file.split('_')[0] == which:\r\n            print(f'Loading matrix from {file}')\r\n            matrix = load_matrix(f'./output/{year}/{month}/{file}')\r\n            days[file.split('_')[1].split('.')[0]] = matrix\r\n    return days\r\n\r\ndef load_all(which):\r\n    '''\r\n    Load all the days from the output path.\r\n\r\n    Returns:\r\n    dict: A dictionary containing the days.\r\n    '''\r\n    days = {}\r\n    for dir in os.listdir('./output'):\r\n        for dir_month in os.listdir(f'./output/{dir}'):\r\n            for file in os.listdir(f'./output/{dir}/{dir_month}'):\r\n                if file.startswith(which) and file.endswith('.npy'):\r\n                    matrix = load_matrix(f'./output/{dir}/{dir_month}/{file}')\r\n                    days[file.split('_')[1].split('.')[0]] = matrix\r\n    return days\r\n\r\ndef percentage_error(actual, predicted):\r\n    '''\r\n    Compute the percentage error between the actual and predicted values.\r\n\r\n    Parameters:\r\n    actual (numpy.ndarray): The actual values.\r\n    predicted (numpy.ndarray): The predicted values.\r\n\r\n    Returns:\r\n    numpy.ndarray: The percentage error.\r\n    '''\r\n    res = np.empty(actual.shape)\r\n    for i in range(actual.shape[0]):\r\n        for j in range(actual.shape[1]):\r\n            if actual[i, j] != 0:\r\n                res[i, j] = (actual[i, j] - predicted[i, j]) / actual[i, j]\r\n            else:\r\n                res[i, j] = predicted[i, j] / np.mean(actual)\r\n    return res\r\n\r\ndef mean_absolute_percentage_error(y_true, y_pred): \r\n    '''\r\n    Compute the mean absolute percentage error between the actual and predicted values.\r\n\r\n    Parameters:\r\n    y_true (numpy.ndarray): The actual values.\r\n    y_pred (numpy.ndarray): The predicted values.\r\n\r\n    Returns:\r\n    float: The mean absolute percentage error.\r\n    '''\r\n    return np.mean(np.abs(percentage_error(np.asarray(y_true), np.asarray(y_pred)))) * 100\r\n\r\ndef find_KNN(days, target_day, K):\r\n    '''\r\n    Find the K closest days to the target day.\r\n\r\n    Parameters:\r\n    days (dict): A dictionary containing the days.\r\n    target_day (str): The target day.\r\n    K (int): The number of closest days to find.\r\n\r\n    Returns:\r\n    list: The K closest days and their distances.\r\n    '''\r\n    distances = []\r\n    for key in days.keys():\r\n        if key == target_day:\r\n            continue\r\n        distance = compare_days_frobenius_norm(days[target_day], days[key])\r\n        distances.append((key, distance))\r\n    distances.sort(key=lambda x: x[1])\r\n    return distances[:K]\r\n\r\ndef calc_MAPE(result, target_day, which):\r\n    '''\r\n    Compute the Mean Absolute Percentage Error (MAPE) for each of the K closest days.\r\n\r\n    Parameters:\r\n    result (list): The list of the K closest days and their distances.\r\n    target_day (str): The target day.\r\n\r\n    Returns:\r\n    None\r\n    '''\r\n    year = target_day.split('-')[0]\r\n    month = target_day.split('-')[1]\r\n    ym = year + month\r\n    file_paths = [f'./data_filtered/{year}/{ym}.csv']\r\n\r\n    for i, (day, distance) in enumerate(result):\r\n        year = day.split('-')[0]\r\n        month = day.split('-')[1]\r\n        ym = year + month\r\n        file_paths.append(f'./data_filtered/{year}/{ym}.csv')\r\n\r\n    data = gen_matrices.run_parallel(file_paths, normalize=False, save=False)\r\n\r\n    for i, (day, distance) in enumerate(result):\r\n        target_day_matrix = data[target_day][which]\r\n        day_matrix = data[day][which]\r\n        \r\n        mape = mean_absolute_percentage_error(target_day_matrix, day_matrix)\r\n        \r\n        result[i] = (day, distance, mape)\r\n\r\ndef run(target, which):\r\n    # print(f'Running find_closest for {target} comparing for {which}')\r\n    # MAPE = input('Calculate MAPE for the closest days? (y/n): ').lower()\r\n    start = time.time()\r\n\r\n    days = load_all(which)\r\n    \r\n    # print(f'Target day: {target}')\r\n    # print(pd.DataFrame(days[target]))\r\n    \r\n    K = 10\r\n    closest_days = find_KNN(days, target, K)\r\n    # plot_comparison(days, target, closest_days[0][0])\r\n\r\n    # Return the K closest days and their distances (closest_days[i][0] for day, closest_days[i][1] for distance)\r\n    print(closest_days)\r\n    return closest_days\r\n\r\n    if MAPE == 'y':\r\n        calc_MAPE(closest_days, target, which)\r\n    \r\n        closest_day, closest_distance, closest_mape = closest_days[0][0], closest_days[0][1], closest_days[0][2]\r\n        print(f'\\nClosest day to the target day: {closest_day} with distance {closest_distance} and MAPE {closest_mape}')\r\n        print(pd.DataFrame(days[closest_day]))\r\n\r\n        print('\\nClosest 10 days to the target day:')\r\n        for i, (day, distance, mape) in enumerate(closest_days):\r\n            print(f'{i+1}. Day: {day}, Distance: {distance}, MAPE: {mape}')\r\n    else:\r\n        closest_day, closest_distance = closest_days[0][0], closest_days[0][1]\r\n        print(f'\\nClosest day to the target day: {closest_day} with distance {closest_distance}')\r\n        print(pd.DataFrame(days[closest_day]))\r\n\r\n        print('\\nClosest 10 days to the target day:')\r\n        for i, (day, distance) in enumerate(closest_days):\r\n            print(f'{i+1}. Day: {day}, Distance: {distance}')\r\n\r\n    time_elapsed = time.time() - start\r\n    print(f'\\nTook {time_elapsed//86400} days, {time_elapsed//3600%24} hrs, {time_elapsed//60%60} mins, {time_elapsed%60:.2f} secs')\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/scripts/find_closest.py b/scripts/find_closest.py
+--- a/scripts/find_closest.py	(revision 4c845ee6988ede45e9cd8886ab992b80426b7eea)
++++ b/scripts/find_closest.py	(date 1720119501679)
+@@ -241,8 +241,8 @@
+ 
+     days = load_all(which)
+     
+-    # print(f'Target day: {target}')
+-    # print(pd.DataFrame(days[target]))
++    print(f'Target day: {target}')
++    print(pd.DataFrame(days[target]))
+     
+     K = 10
+     closest_days = find_KNN(days, target, K)
+@@ -252,24 +252,24 @@
+     print(closest_days)
+     return closest_days
+ 
+-    if MAPE == 'y':
+-        calc_MAPE(closest_days, target, which)
+-    
+-        closest_day, closest_distance, closest_mape = closest_days[0][0], closest_days[0][1], closest_days[0][2]
+-        print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance} and MAPE {closest_mape}')
+-        print(pd.DataFrame(days[closest_day]))
+-
+-        print('\nClosest 10 days to the target day:')
+-        for i, (day, distance, mape) in enumerate(closest_days):
+-            print(f'{i+1}. Day: {day}, Distance: {distance}, MAPE: {mape}')
+-    else:
+-        closest_day, closest_distance = closest_days[0][0], closest_days[0][1]
+-        print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance}')
+-        print(pd.DataFrame(days[closest_day]))
+-
+-        print('\nClosest 10 days to the target day:')
+-        for i, (day, distance) in enumerate(closest_days):
+-            print(f'{i+1}. Day: {day}, Distance: {distance}')
++    # if MAPE == 'y':
++    #     calc_MAPE(closest_days, target, which)
++    #
++    #     closest_day, closest_distance, closest_mape = closest_days[0][0], closest_days[0][1], closest_days[0][2]
++    #     print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance} and MAPE {closest_mape}')
++    #     print(pd.DataFrame(days[closest_day]))
++    #
++    #     print('\nClosest 10 days to the target day:')
++    #     for i, (day, distance, mape) in enumerate(closest_days):
++    #         print(f'{i+1}. Day: {day}, Distance: {distance}, MAPE: {mape}')
++    # else:
++    #     closest_day, closest_distance = closest_days[0][0], closest_days[0][1]
++    #     print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance}')
++    #     print(pd.DataFrame(days[closest_day]))
++    #
++    #     print('\nClosest 10 days to the target day:')
++    #     for i, (day, distance) in enumerate(closest_days):
++    #         print(f'{i+1}. Day: {day}, Distance: {distance}')
+ 
+     time_elapsed = time.time() - start
+     print(f'\nTook {time_elapsed//86400} days, {time_elapsed//3600%24} hrs, {time_elapsed//60%60} mins, {time_elapsed%60:.2f} secs')

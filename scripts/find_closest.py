@@ -267,25 +267,27 @@ def run(target, which, days):
     print(f'\nTook {time_elapsed//86400} days, {time_elapsed//3600%24} hrs, {time_elapsed//60%60} mins, {time_elapsed%60:.2f} secs')
 
     # Return a list of the K closest days and their distances (closest_days[0][0] is the closest day, closest_days[0][1] is the distance to the target day)
+    # conver closest_days to a dataframe
+    closest_days = pd.DataFrame(closest_days, columns=['Date', 'Distance'])
     print(closest_days)
     return closest_days
 
     # plot_comparison(days, target, closest_days[0][0])
-    if MAPE == 'y':
-        calc_MAPE(closest_days, target, which)
-    
-        closest_day, closest_distance, closest_mape = closest_days[0][0], closest_days[0][1], closest_days[0][2]
-        print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance} and MAPE {closest_mape}')
-        print(pd.DataFrame(days[closest_day]))
-
-        print('\nClosest 10 days to the target day:')
-        for i, (day, distance, mape) in enumerate(closest_days):
-            print(f'{i+1}. Day: {day}, Distance: {distance}, MAPE: {mape}')
-    else:
-        closest_day, closest_distance = closest_days[0][0], closest_days[0][1]
-        print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance}')
-        print(pd.DataFrame(days[closest_day]))
-
-        print('\nClosest 10 days to the target day:')
-        for i, (day, distance) in enumerate(closest_days):
-            print(f'{i+1}. Day: {day}, Distance: {distance}')
+    # if MAPE == 'y':
+    #     calc_MAPE(closest_days, target, which)
+    #
+    #     closest_day, closest_distance, closest_mape = closest_days[0][0], closest_days[0][1], closest_days[0][2]
+    #     print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance} and MAPE {closest_mape}')
+    #     print(pd.DataFrame(days[closest_day]))
+    #
+    #     print('\nClosest 10 days to the target day:')
+    #     for i, (day, distance, mape) in enumerate(closest_days):
+    #         print(f'{i+1}. Day: {day}, Distance: {distance}, MAPE: {mape}')
+    # else:
+    #     closest_day, closest_distance = closest_days[0][0], closest_days[0][1]
+    #     print(f'\nClosest day to the target day: {closest_day} with distance {closest_distance}')
+    #     print(pd.DataFrame(days[closest_day]))
+    #
+    #     print('\nClosest 10 days to the target day:')
+    #     for i, (day, distance) in enumerate(closest_days):
+    #         print(f'{i+1}. Day: {day}, Distance: {distance}')
